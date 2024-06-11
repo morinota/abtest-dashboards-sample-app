@@ -3,49 +3,43 @@ import polars as pl
 from pathlib import Path
 import sqlite3
 
-DB_FILE_DIR = Path("./sqlite/db_files")
+DB_FILE_PATH = Path("./sqlite/sample_database.db")
 TABLE_DEFINE_QUERIES_DIR = Path("./sqlite/table_define_queries")
 
 
 def main() -> None:
     # dbファイル達を全て削除
-    _clean_db_files()
+    _clean_db_file()
 
     # テーブル定義クエリを取得して順番に実行していく
-    _init_db_files()
+    _init_db_file()
 
 
-def _clean_db_files() -> None:
-    for file in DB_FILE_DIR.iterdir():
-        file.unlink()
+def _clean_db_file() -> None:
+    # DB_FILE_PATHを削除
+    if DB_FILE_PATH.exists():
+        DB_FILE_PATH.unlink()
 
 
-def _init_db_files() -> list[Path]:
+def _init_db_file() -> None:
     """テーブル定義クエリを取得して順番に実行していく
     - .dbファイルの名前は、.sqlの名前を使用する
     """
-    db_files = []
-    for file in TABLE_DEFINE_QUERIES_DIR.iterdir():
-        if file.suffix == ".sql":
-            db_file = DB_FILE_DIR / (file.stem + ".db")
-            db_files.append(db_file)
-            _execute_sql_query(file, db_file)
-    return db_files
-
-
-def _execute_sql_query(sql_file: Path, db_file: Path) -> None:
-    # SQLのクエリを文字列として取得
-    with open(sql_file, "r") as file:
-        sql = file.read()
-
-    # DBに接続してクエリを実行
-    conn = sqlite3.connect(db_file)
+    # DBに接続
+    conn = sqlite3.connect(DB_FILE_PATH)
     cursor = conn.cursor()
-    cursor.executescript(sql)
+
+    for sql_file in TABLE_DEFINE_QUERIES_DIR.iterdir():
+        if sql_file.suffix != ".sql":
+            raise Exception(f"Invalid file type: {sql_file.name}")
+        with open(sql_file, "r") as sql_file:
+            sql_str = sql_file.read()
+        cursor.executescript(sql_str)
+        print(f"SQL script executed successfully: {sql_file.name}")
+
+    # transactionをcommitしてDBを閉じる
     conn.commit()
     conn.close()
-
-    print(f"SQL script executed successfully: {sql_file}")
 
 
 if __name__ == "__main__":
@@ -53,8 +47,7 @@ if __name__ == "__main__":
 
     # 動作確認
     ## users_eventsテーブルから全件取得するクエリを実行
-    db_file = DB_FILE_DIR / "users_events.db"
-    conn = sqlite3.connect(db_file)
+    conn = sqlite3.connect(DB_FILE_PATH)
     cursor = conn.cursor()
     ## 結果をpl.DataFrameとして取得
     results = cursor.execute("SELECT * FROM users_events")
